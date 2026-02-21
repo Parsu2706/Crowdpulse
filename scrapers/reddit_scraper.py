@@ -5,7 +5,6 @@ import os
 import prawcore
 import logging
 from dotenv import load_dotenv
-import os
 from pathlib import Path 
 from config.paths import DATA_RAW, REDDIT_CSV
 

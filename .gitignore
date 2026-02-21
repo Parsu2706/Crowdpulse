@@ -22,5 +22,6 @@ bert_models/
 
 .DS_Store
 Thumbs.db
-
+.crowdpulse/
 *.ipynb
+ .vscode/

@@ -3,8 +3,13 @@ import plotly.express as px
 
 from utils.data_loader import get_file_mtime
 from utils.pipeline import load_and_preprocess
-from sentiment_classification.infer import run_sentiment
+from services.sentiment_classification.infer import run_sentiment
+
 from utils.session_keys import DF_REDDIT_TOPICS, DF_NEWS_TOPICS
+
+from app.css_styling.style_page import css_styling
+
+css_styling()
 
 def cal_avg(df, label):
     vals = df.loc[df["label"] == label, "confidence"]
@@ -12,6 +17,8 @@ def cal_avg(df, label):
 
 st.session_state.setdefault(DF_REDDIT_TOPICS, None)
 st.session_state.setdefault(DF_NEWS_TOPICS, None)
+st.set_page_config(page_title="Sentiment Analysis" , layout="wide")
+css_styling()
 
 
 st.title("Sentiment Analysis")

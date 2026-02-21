@@ -12,6 +12,9 @@ NEWS_CSV = DATA_RAW / "news_latest.csv"
 
 
 
+import asyncio
+
+LLM_SEMAPHORE = asyncio.Semaphore(2)  
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def semantic_topic_similarity(words_a : list[str] , words_b : list[str]) -> float: 

@@ -1,4 +1,3 @@
-import streamlit as st
 import pandas as pd
 from config.paths import REDDIT_CSV , NEWS_CSV
 

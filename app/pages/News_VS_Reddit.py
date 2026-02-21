@@ -1,17 +1,24 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import asyncio
-from utils.topic_alignment import align_topic_to_text
-from news_reddit_summary.summarizer import analyze_aligned_topics
-from utils.topic_similarity import semantic_topic_similarity
-from topic_modeling.utils import generate_topic_name
+from services.similarity.topic_similarity import semantic_topic_similarity
+from services.similarity.topic_alignment import align_topic_to_text
+from services.similarity.topic_similarity import semantic_topic_similarity
 
+from app.css_styling.style_page import css_styling
+
+css_styling()
 
 from utils.session_keys import DF_NEWS_TOPICS,DF_REDDIT_TOPICS,NEWS_TOPIC_KEYWORDS,REDDIT_TOPIC_KEYWORDS,TOPIC_SIMILARITY_DF,TOPIC_NARRATIVES
 st.set_page_config(page_title="News vs Reddit Comparison" , layout="wide")
 st.title("News vs Reddit - Comparative Analysis")
-st.divider()
+
+if st.button("Reset Analysis"): 
+    for key in [TOPIC_SIMILARITY_DF , TOPIC_NARRATIVES]: 
+        st.session_state.pop(key , None)
+    st.rerun()
+
+st.write("")
 all_keys = [DF_NEWS_TOPICS,DF_REDDIT_TOPICS,NEWS_TOPIC_KEYWORDS,REDDIT_TOPIC_KEYWORDS,TOPIC_SIMILARITY_DF,TOPIC_NARRATIVES]
 for key in all_keys: 
     if key not in st.session_state: 
@@ -20,6 +27,7 @@ for key in all_keys:
 df_news = st.session_state.get(DF_NEWS_TOPICS)
 df_reddit = st.session_state.get(DF_REDDIT_TOPICS)
 
+topic_titles = st.session_state.get("TOPIC_TITLES", {})
 
 news_topic_keywords = st.session_state.get(NEWS_TOPIC_KEYWORDS)
 reddit_topic_keywords = st.session_state.get(REDDIT_TOPIC_KEYWORDS)
@@ -57,7 +65,9 @@ with tab2:
     if news_topic_keywords is None or reddit_topic_keywords is None:
         st.info("Run **Topic Modeling** on both News and Reddit Data")
         st.stop()
-    if st.session_state[TOPIC_SIMILARITY_DF] is None: 
+    similarity_df = st.session_state.get(TOPIC_SIMILARITY_DF)
+
+    if similarity_df is None:
         rows = []
 
         for r_id , r_words in reddit_topic_keywords.items(): 
@@ -70,20 +80,14 @@ with tab2:
                     best_match = n_id 
             rows.append(
                 {
-                    "Reddit Topic": generate_topic_name(r_words),
-                    "Closest News Topic": (
-                        generate_topic_name(news_topic_keywords[best_match])
-                        if best_match is not None
-                        else "—"
-                    ),
+                    "Reddit Topic": topic_titles.get(r_id , f"Topic {r_id}"),
+                    "Closest News Topic": topic_titles.get(best_match , "-"),
                     "Semantic Similarity": round(best_score, 3),
                 }
             )
 
         similarity_df = (pd.DataFrame(rows).sort_values("Semantic Similarity" , ascending=False).reset_index(drop=True))
         st.session_state[TOPIC_SIMILARITY_DF] = similarity_df
-    similarity_df = st.session_state[TOPIC_SIMILARITY_DF]
-
     st.dataframe(similarity_df.style.background_gradient(subset=["Semantic Similarity"] , cmap="Blues") , use_container_width=True)
 
 
@@ -94,23 +98,31 @@ with tab3:
         st.stop()
 
     similarity_df = st.session_state.get(TOPIC_SIMILARITY_DF)
-    if similarity_df is None: 
+
+    if similarity_df is None:
         st.info("Generate topic alignment in Tab 2 first")
         st.stop()
-        
-    if st.button("Generate Topic-Based Narrative Analysis" , type="primary"): 
+
+    similarity_df = similarity_df.nlargest(3, "Semantic Similarity")
+    similarity_df = similarity_df[similarity_df["Semantic Similarity"] > 0.35]
+
+    with st.form("Narrative Form"):
+        submitted = st.form_submit_button("Generate Topic Based Narrative Analysis")
+
+    if submitted: 
         with st.spinner("Generating analysis"): 
-            aligned_bundle = align_topic_to_text(similarity_df=similarity_df , df_news=df_news , df_reddit=df_reddit , top_k=15 , max_texts_per_side=6)
-            loop = asyncio.get_event_loop()
-            asyncio.set_event_loop(loop=loop)
-            results = loop.run_until_complete(analyze_aligned_topics(aligned_bundle))
+            aligned_bundle = align_topic_to_text(similarity_df=similarity_df , df_news=df_news , df_reddit=df_reddit , top_k=15 , max_texts_per_side=4)
+
+            results = cached_topic_analysis(aligned_bundle)            
             st.session_state[TOPIC_NARRATIVES] = results
 
-    if TOPIC_NARRATIVES in st.session_state:
+    narratives = st.session_state.get(TOPIC_NARRATIVES)
+
+    if narratives:
         st.markdown("---")
         for item in st.session_state[TOPIC_NARRATIVES]:
             st.markdown(
                 f"### 🔹 {item['news_topic']} ↔ {item['reddit_topic']}"
             )
             st.markdown(item["analysis"])
-            st.divider()
+            st.write("")
